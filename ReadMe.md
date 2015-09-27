@@ -1,0 +1,134 @@
+Introduction
+============
+
+In this repo you could find my project of the Getting and Cleaning Data
+Course. In this project we were asked to create one R script called
+*run\_analysis.R* that does the following:
+
+1.  Merges the training and the test sets to create one data set.
+2.  Extracts only the measurements on the mean and standard deviation
+    for each measurement.
+3.  Uses descriptive activity names to name the activities in the data
+    set
+4.  Appropriately labels the data set with descriptive variable names.
+5.  From the data set in step 4, creates a second, independent tidy data
+    set with the average of each variable for each activity and each
+    subject.
+
+But, for my assignment, I decide do not follow the steps in the same
+order so I do the following:
+
+1.  Read each file of the test data and training data and assign the
+    column names.
+2.  Merge the training and the test sets in one data frame.
+3.  Assign descriptive activity names to data set
+4.  Create new data set
+
+Read each file of the test data and training data and assign the column names
+=============================================================================
+
+First, I download the file from the URL:
+
+    # Download file
+    temp <- tempfile() # Create a temporal file
+    download.file ("https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip", temp)
+    unzip(temp) # Unzip temporal file
+    unlink(temp) # Delete temporal file
+    rm(temp) # Removes temporal file from Global Environment of R
+
+Then, I read the *subject\_test.txt* and *y\_test.txt* files using
+`data.table`package, and assingning the corresponding column names for
+each one.
+
+    # Reading and binding test data
+    library(data.table)
+    ## Reading subject data and setting column name
+    subject.test <- fread("~/Documents/R Projects/Data_Science_Specialization/Cleaning data/Getting_Cleaning_Data_Project/UCI HAR Dataset/test/subject_test.txt")
+    colnames(subject.test) <- "subject"
+
+    ## Reading activities data and setting column name
+    activities.test <- fread("~/Documents/R Projects/Data_Science_Specialization/Cleaning data/Getting_Cleaning_Data_Project/UCI HAR Dataset/test/y_test.txt", select = )
+    colnames(activities.test) <- "activities"
+
+Then comes the **critical difference**, I create a vector with the
+number column with the mean and standard deviation for each measurement:
+
+    ## Creating a vector of columns with the mean and standard deviation for each measurement
+    variables <- c(1:6, 41:46, 81:86, 121:126, 161:166, 201:202, 214:215, 227:228, 240:241, 253:254, 266:271, 294:296, 345:350, 373:375, 424:429, 452:454, 503:504, 516:517, 526, 529:530, 542:543, 552, 555:561)
+
+And I use this vector to read only the columns with measurements with
+mean and standard deviation of the *X\_test.txt* file:
+
+    ## Reading variable data
+    variable.test <- fread("~/Documents/R Projects/Data_Science_Specialization/Cleaning data/Getting_Cleaning_Data_Project/UCI HAR Dataset/test/X_test.txt", select = variables)
+
+After this, I read the *feature.txt* that contain the variable names,
+filter it with the vector `variables` and use it to name the columns of
+the `variable.test`vector:
+
+    ### Renaming variable names
+    variable.names <- fread("~/Documents/R Projects/Data_Science_Specialization/Cleaning data/Getting_Cleaning_Data_Project/UCI HAR Dataset/features.txt")
+    variable.names <- variable.names$V2[variable.names$V1 %in% variables]
+    colnames(variable.test) <- variable.names
+
+Finally, I bind my three data frames
+(`subject.test,activities.test,variable.test`) in one data frame
+(`test.data`).
+
+    ## Binding test data
+    test.data <- cbind(subject.test,activities.test,variable.test)
+
+Then, I do the same with training data sets, as you can see in my
+*run\_analysis.R* file.
+
+So, as you can see, in this first step I extracts only the measurements
+on the mean and standard deviation for each measurement (original step
+2) and label the data set with descriptive variable names (original step
+4).
+
+Also, I need to say that I use as "descriptive variable names" the same
+of the original data set, i.e. the labels of the features.txt file. I
+think this are the best labels because they were constructed using the
+main characteristics of each variable. For example, the majority of the
+variables start with a t (for time) or with a f (for frequency), then
+use Body or Gravity, then Acc(for acceleration) or Gyro (for gyroscope),
+then they specify if the variable refers to the jerk signals, the
+magnitude or both, then specify the type of statistical measure used to
+obtain it (e.g. mean, standard deviation, etc.) and, finally, identify
+the axis (XYZ)
+
+Merge the training and the test sets in one data frame
+======================================================
+
+After read and assing column names for test and training data sets, I
+merge the two data frames (`test.data and train.data`) in one data frame
+(`smartlab.exp`), to do this I use `rbindlist()` of the `data.table`
+package, because is faster than `rbind()` of the base system.
+
+    # Merging training and test sets
+    smartlab.exp <- rbindlist(list(train.data, test.data), use.names = TRUE)
+
+Assign descriptive activity names to data set
+=============================================
+
+With my merged data frame (`smartlab.exp`), I assign the activity names
+using `mapvalues()`of the `plyr` package.
+
+    # Assign descriptive activity names to data set
+    library(plyr)
+    smartlab.exp$activities <- mapvalues(smartlab.exp$activities,
+                                         from = c("1", "2", "3", "4", "5", "6"),
+                                         to = c("WALKING", "WALKING_UPSTAIRS", "WALKING_DOWNSTAIRS","SITTING","STANDING","LAYING"))
+
+Create new data set
+===================
+
+Finally, I create my new and tidy data set using `aggegate()`, that
+enable us to group our data by subject and activities, and apply to the
+all variables the mean.
+
+    # Creating new tidy data set
+    smartlab.exp.avg <- aggregate(smartlab.exp[,3:86, with = FALSE],
+                                  by = list(subject = smartlab.exp$subject,
+                                            activities = smartlab.exp$activities),
+                                  FUN = mean)
